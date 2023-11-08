@@ -2,16 +2,18 @@ import os
 import asyncio
 from TelegramCommandHandler import TelegramCommandHandler
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
-import openai
+from openai import OpenAI
+openai = OpenAI()
 from OpenAIHandler import OpenAIHandler
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 application = Application.builder().token(TELEGRAM_TOKEN).build()
-TelegramCommandHandler = TelegramCommandHandler()
 loop = asyncio.get_event_loop()
 bot = application.bot
+
+TelegramCommandHandler = TelegramCommandHandler()
 OpenAIHandler = OpenAIHandler(openai.api_key, bot, loop)
 
 def main():

@@ -1,9 +1,10 @@
 import asyncio
-
 from telegram import Update, Bot
 from telegram.ext import CallbackContext
-import openai
 import os
+from openai import OpenAI
+
+open_ai_client = OpenAI()
 
 class OpenAIHandler:
     def __init__(self,openai_api_key,bot: Bot,loop):
@@ -15,24 +16,46 @@ class OpenAIHandler:
         user_message = update.message.text
         if user_message.lower().startswith('image:'):
             await self.handle_image(update,context)
+        elif user_message.lower().startswith('audio:'):
+            await self.handle_text_to_speech(update,context)
         else:
-            response = openai.ChatCompletion.create(
+            response = open_ai_client.chat.completions.create(
                model="gpt-3.5-turbo",
                messages=[{"role": "user", "content": user_message}]
             )
             response = response.choices[0].message.content
             await update.message.reply_text(response)
 
+    async def handle_text_to_speech(self,update,context):
+        user_message = update.message.text
+        chat_id = update.message.chat_id
+        prompt = user_message[len('audio:'):].strip()
+        await update.message.reply_text("Your audio request has been received, processing...")
+        try:
+             response = open_ai_client.audio.speech.create(
+             model="tts-1",
+             voice="alloy",
+             input=prompt
+             )
+             self.loop.call_soon_threadsafe(asyncio.create_task, self.bot.send_audio(chat_id=chat_id, audio=response))
+        except Exception as e:
+            print(e)
+            self.loop.call_soon_threadsafe(asyncio.create_task, self.bot.send_message(chat_id=chat_id,
+                                                                                  text="Sorry, an error occurred while generating your audio."))
     async def handle_image(self,update,context) -> None:
         user_message = update.message.text
         chat_id = update.message.chat_id
         prompt = user_message[len('image:'):].strip()
         await update.message.reply_text("Your image request has been received, processing...")
         try:
-            response = openai.Image.create(prompt=prompt, n=1)
-            image_url = response['data'][0]['url']
+            response = open_ai_client.images.generate(model="dall-e-3",prompt=prompt, n=1)
+            print(response)
+            image_url = response.data[0].url
+            print(image_url)
             self.loop.call_soon_threadsafe(asyncio.create_task, self.bot.send_photo(chat_id=chat_id, photo=image_url))
         except Exception as e:
+            print("handle_image exception")
+            print(e)
             self.loop.call_soon_threadsafe(asyncio.create_task, self.bot.send_message(chat_id=chat_id,
                                                                             text="Sorry, an error occurred while generating your image."))
 
@@ -49,7 +72,7 @@ class OpenAIHandler:
         await update.message.reply_text("Your audio has been received, transcribing...")
         try:
             with open(audio_file_path, "rb") as audio_file:
-                transcript = openai.Audio.translate(
+                transcript = open_ai_client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
                     response_format="text"
