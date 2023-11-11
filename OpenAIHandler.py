@@ -6,25 +6,34 @@ from openai import OpenAI
 
 open_ai_client = OpenAI()
 
+
 class OpenAIHandler:
-    def __init__(self,openai_api_key,bot: Bot,loop):
+    def __init__(self,openai_api_key,bot: Bot,loop,rate_limiter_db):
         self.openai_api_key = openai_api_key
         self.bot = bot
         self.loop = loop
+        self.rate_limiter_db = rate_limiter_db
 
     async def handle_text(self,update: Update, context: CallbackContext) -> None:
+        if self.rate_limiter_db.is_user_rate_limited(update.message.chat_id):
+            await update.message.reply_text("You are sending msg too fast. Try again later.")
+            return
         user_message = update.message.text
         if user_message.lower().startswith('image:'):
             await self.handle_image(update,context)
         elif user_message.lower().startswith('audio:'):
             await self.handle_text_to_speech(update,context)
         else:
-            response = open_ai_client.chat.completions.create(
-               model="gpt-3.5-turbo",
-               messages=[{"role": "user", "content": user_message}]
-            )
-            response = response.choices[0].message.content
-            await update.message.reply_text(response)
+            await self.handle_gpt_response(update,context)
+
+    async def handle_gpt_response(self,update,context):
+        user_message = update.message.text
+        response = open_ai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": user_message}]
+        )
+        response = response.choices[0].message.content
+        await update.message.reply_text(response)
 
     async def handle_text_to_speech(self,update,context):
         user_message = update.message.text
@@ -84,4 +93,5 @@ class OpenAIHandler:
             print(e)
             self.loop.call_soon_threadsafe(asyncio.create_task, self.bot.send_message(chat_id=chat_id,
                                                                             text="Sorry, an error occurred while transcribing your audio."))
-
+        finally:
+            os.remove(audio_file_path)

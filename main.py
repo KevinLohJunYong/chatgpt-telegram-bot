@@ -3,9 +3,10 @@ import asyncio
 from TelegramCommandHandler import TelegramCommandHandler
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from openai import OpenAI
-openai = OpenAI()
 from OpenAIHandler import OpenAIHandler
+from RateLimiterDB import RateLimiterDB
 
+openai = OpenAI()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
@@ -14,9 +15,11 @@ loop = asyncio.get_event_loop()
 bot = application.bot
 
 TelegramCommandHandler = TelegramCommandHandler()
-OpenAIHandler = OpenAIHandler(openai.api_key, bot, loop)
+rate_limiter_db = RateLimiterDB()
+OpenAIHandler = OpenAIHandler(openai.api_key, bot, loop, rate_limiter_db)
 
 def main():
+    print(rate_limiter_db.print_redis_contents())
     start_handler = CommandHandler('start', TelegramCommandHandler.start_command)
     help_handler = CommandHandler('help', TelegramCommandHandler.help_command)
     unknown_handler = MessageHandler(filters.COMMAND, TelegramCommandHandler.unknown_command)
