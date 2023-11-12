@@ -14,11 +14,9 @@ class RateLimiterDB:
         current_time = int(time.time())
         window_start = current_time - window
         print(f"key: {key}")
-        # Check if the key exists and is a zset
-        if not self.redis.exists(key) or self.redis.type(key).decode('utf-8') != 'zset':
-            # Initialize the key as an empty zset if it doesn't exist or isn't a zset
-            self.redis.zadd(key, {current_time: current_time})
-            return False  # Assuming a fresh start means not rate-limited
+        # if not self.redis.exists(key) or self.redis.type(key).decode('utf-8') != 'zset':
+        #    self.redis.zadd(key, {current_time: current_time})
+        #    return False
         num_requests_made = self.redis.zcount(key, window_start, current_time)
         print(num_requests_made)
 

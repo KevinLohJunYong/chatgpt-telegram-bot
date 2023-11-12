@@ -6,11 +6,8 @@ class UsersPromptsDB:
         self.redis = redis.StrictRedis(host='localhost', port=6379, db=0)
 
     def add_user_prompt(self,user_id,prompt):
-        user_id_str = str(user_id)
-        if not self.redis.exists(user_id_str) or self.redis.type(user_id_str).decode('utf-8') != 'list':
-            self.redis.delete(user_id_str)
-            self.redis.rpush(user_id_str, "")
-        self.redis.rpush(user_id_str,prompt)
+        user_prompt_key = f"user prompt key: {user_id}"
+        self.redis.rpush(user_prompt_key,prompt)
 
     def get_conversation_context(self,user_id):
         self.redis.ltrim(user_id, -c.CONVERSATION_CONTEXT_SIZE, -1)

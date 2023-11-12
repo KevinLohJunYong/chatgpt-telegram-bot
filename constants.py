@@ -1,6 +1,6 @@
 RATE_LIMIT_NUMBER = 20
 RATE_LIMIT_WINDOW = 3600
-CONVERSATION_CONTEXT_SIZE = 5
+CONVERSATION_CONTEXT_SIZE = 10
 RATE_LIMIT_MSG = "You are sending messages too fast. Try again later."
 
 PROCESSING_TEXT_TO_SPEECH_MSG = "Your audio request has been received, processing..."
