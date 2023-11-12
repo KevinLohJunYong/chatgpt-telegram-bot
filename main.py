@@ -5,6 +5,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from openai import OpenAI
 from OpenAIHandler import OpenAIHandler
 from RateLimiterDB import RateLimiterDB
+from UsersPromptsDB import UsersPromptsDB
 
 openai = OpenAI()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -16,7 +17,8 @@ bot = application.bot
 
 TelegramCommandHandler = TelegramCommandHandler()
 rate_limiter_db = RateLimiterDB()
-OpenAIHandler = OpenAIHandler(openai.api_key, bot, loop, rate_limiter_db)
+users_prompts_db = UsersPromptsDB()
+OpenAIHandler = OpenAIHandler(openai.api_key, bot, loop, rate_limiter_db,users_prompts_db)
 
 def main():
     print(rate_limiter_db.print_redis_contents())

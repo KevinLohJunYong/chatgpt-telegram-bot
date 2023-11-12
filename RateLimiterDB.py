@@ -1,25 +1,35 @@
 import redis
 import time
+import constants as c
 
-limit = 20
-window = 3600
+limit = c.RATE_LIMIT_NUMBER
+window = c.RATE_LIMIT_WINDOW
 
 class RateLimiterDB:
     def __init__(self):
         self.redis = redis.StrictRedis(host='localhost', port=6379, db=0)
 
     def is_user_rate_limited(self,key):
+        key = f"rate limiting key: {key}"
         current_time = int(time.time())
         window_start = current_time - window
+        print(f"key: {key}")
+        # Check if the key exists and is a zset
+        if not self.redis.exists(key) or self.redis.type(key).decode('utf-8') != 'zset':
+            # Initialize the key as an empty zset if it doesn't exist or isn't a zset
+            self.redis.zadd(key, {current_time: current_time})
+            return False  # Assuming a fresh start means not rate-limited
         num_requests_made = self.redis.zcount(key, window_start, current_time)
         print(num_requests_made)
 
         if num_requests_made < limit:
+            print("user is not rate limited")
             self.redis.zadd(key, {current_time: current_time})
             self.redis.zremrangebyscore(key, '-inf', window_start)
             return False
 
         else:
+            print("user is rate limited")
             return True
 
     def print_redis_contents(self):
