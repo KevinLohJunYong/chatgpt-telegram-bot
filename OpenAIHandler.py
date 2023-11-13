@@ -1,4 +1,7 @@
 import asyncio
+import base64
+
+import requests
 from telegram import Update, Bot
 from telegram.ext import CallbackContext
 import os
@@ -22,7 +25,7 @@ class OpenAIHandler:
         user_message = update.message.text
         self.users_prompts_db.add_user_prompt(update.effective_user.id,user_message)
         if user_message.lower().startswith('image:'):
-            await self.handle_image(update,context)
+            await self.handle_generate_image(update,context)
         elif user_message.lower().startswith('audio:'):
             await self.handle_text_to_speech(update,context)
         else:
@@ -32,8 +35,6 @@ class OpenAIHandler:
         context_list = self.users_prompts_db.get_conversation_context(update.effective_user.id)
         formatted_context = " ".join(context_list)
         user_message = update.message.text
-        print(context_list)
-        print(formatted_context)
         user_prompt_with_context = f"Do not respond to Context. Context: The user has last asked: {formatted_context} " \
                                    f"Do not respond to Context. Please answer: {user_message}"
         print( user_prompt_with_context)
@@ -60,7 +61,7 @@ class OpenAIHandler:
             print(e)
             self.loop.call_soon_threadsafe(asyncio.create_task, self.bot.send_message(chat_id=chat_id,
                                                                                   text=c.TEXT_TO_SPEECH_ERROR_MSG))
-    async def handle_image(self,update,context) -> None:
+    async def handle_generate_image(self,update,context) -> None:
         user_message = update.message.text
         chat_id = update.message.chat_id
         prompt = user_message[len('image:'):].strip()
@@ -70,10 +71,56 @@ class OpenAIHandler:
             image_url = response.data[0].url
             self.loop.call_soon_threadsafe(asyncio.create_task, self.bot.send_photo(chat_id=chat_id, photo=image_url))
         except Exception as e:
-            print("handle_image exception")
+            print("handle_generate_image exception")
             print(e)
             self.loop.call_soon_threadsafe(asyncio.create_task, self.bot.send_message(chat_id=chat_id,
                                                                             text=c.IMAGE_REQUEST_ERROR_MSG))
+
+    async def handle_image(self, update: Update, context: CallbackContext) -> None:
+        if self.rate_limiter_db.is_user_rate_limited(update.message.chat_id):
+            await update.message.reply_text(c.RATE_LIMIT_MSG)
+            return
+        await update.message.reply_text("Your image is being analysed...")
+        print(update.message.photo[-1].get_file())
+        photo_file = await update.message.photo[-1].get_file()
+        print(f"photo_file: {photo_file}")
+        await photo_file.download('downloaded_photo.jpg')
+        encoded_image = self.encode_image('downloaded_photo.jpg')
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {open_ai_client.api_key}"
+        }
+
+        payload = {
+            "model": "gpt-4-vision-preview",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "What’s in this image?"
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{encoded_image}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "max_tokens": 300
+        }
+        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+        response = response.json()
+        message_content = response['choices'][0]['message']['content']
+        print(message_content)
+        await update.message.reply_text(message_content)
+
+    def encode_image(self,image_path):
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode('utf-8')
 
     async def handle_audio(self, update: Update, context: CallbackContext) -> None:
         if self.rate_limiter_db.is_user_rate_limited(update.message.chat_id):
@@ -93,6 +140,8 @@ class OpenAIHandler:
                     file=audio_file,
                     response_format="text"
                 )
+                print(transcript)
+                print(type(transcript))
                 self.users_prompts_db.add_user_prompt(update.effective_user.id,transcript)
                 self.loop.call_soon_threadsafe(asyncio.create_task,
                                           self.bot.send_message(chat_id=chat_id,

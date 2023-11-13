@@ -14,9 +14,6 @@ class RateLimiterDB:
         current_time = int(time.time())
         window_start = current_time - window
         print(f"key: {key}")
-        # if not self.redis.exists(key) or self.redis.type(key).decode('utf-8') != 'zset':
-        #    self.redis.zadd(key, {current_time: current_time})
-        #    return False
         num_requests_made = self.redis.zcount(key, window_start, current_time)
         print(num_requests_made)
 
