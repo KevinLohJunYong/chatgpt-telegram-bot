@@ -37,7 +37,7 @@ class OpenAIHandler:
         user_message = update.message.text
         user_prompt_with_context = f"Do not respond to Context. Context: The user has last asked: {formatted_context} " \
                                    f"Do not respond to Context. Please answer: {user_message}"
-        print( user_prompt_with_context)
+        print(user_prompt_with_context)
         response = open_ai_client.chat.completions.create(
             model=c.GPT_MODEL,
             messages=[{"role": "user", "content":  user_prompt_with_context}]
@@ -80,43 +80,32 @@ class OpenAIHandler:
         if self.rate_limiter_db.is_user_rate_limited(update.message.chat_id):
             await update.message.reply_text(c.RATE_LIMIT_MSG)
             return
-        await update.message.reply_text("Your image is being analysed...")
+        await update.message.reply_text(c.PROCESSING_IMAGE_GENERATION_MSG)
         print(update.message.photo[-1].get_file())
         photo_file = await update.message.photo[-1].get_file()
         print(f"photo_file: {photo_file}")
-        await photo_file.download('downloaded_photo.jpg')
-        encoded_image = self.encode_image('downloaded_photo.jpg')
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {open_ai_client.api_key}"
-        }
-
-        payload = {
-            "model": "gpt-4-vision-preview",
-            "messages": [
+        await photo_file.download(c.SAMPLE_FILE_NAME)
+        base64_image = self.encode_image(c.SAMPLE_FILE_NAME)
+        response = open_ai_client.chat.completions.create(
+            model=c.VISION_MODEL,
+            messages=[
                 {
                     "role": "user",
                     "content": [
-                        {
-                            "type": "text",
-                            "text": "What’s in this image?"
-                        },
+                        {"type": "text", "text": "What’s in this image?"},
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": f"data:image/jpeg;base64,{encoded_image}"
-                            }
-                        }
-                    ]
+                                "url": f"data:image/jpeg;base64,{base64_image}",
+                            },
+                        },
+                    ],
                 }
             ],
-            "max_tokens": 300
-        }
-        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-        response = response.json()
-        message_content = response['choices'][0]['message']['content']
-        print(message_content)
-        await update.message.reply_text(message_content)
+            max_tokens=300,
+        )
+        print(response.choices[0].message.content)
+        await update.message.reply_text(response.choices[0].message.content)
 
     def encode_image(self,image_path):
         with open(image_path, "rb") as image_file:
